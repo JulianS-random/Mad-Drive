@@ -1,5 +1,5 @@
 // storage.js
-// Simple localStorage wrapper with one JSON blob.
+// Single-key localStorage save blob
 
 const KEY = "driveRemixSave_v1";
 
@@ -11,12 +11,9 @@ const DEFAULT_SAVE = {
     level50: false,
     level100: false,
     noFlip: false,
-    speedster: false // finish a level under 12s
+    speedster: false
   },
-  stats: {
-    totalWins: 0,
-    bestTimes: {} // levelIndex -> ms
-  }
+  stats: { totalWins: 0, bestTimes: {} }
 };
 
 export const Storage = {
@@ -25,11 +22,8 @@ export const Storage = {
       const raw = localStorage.getItem(KEY);
       if (!raw) return structuredClone(DEFAULT_SAVE);
       const parsed = JSON.parse(raw);
-      // Merge with defaults to allow future keys
       return deepMerge(structuredClone(DEFAULT_SAVE), parsed);
-    } catch {
-      return structuredClone(DEFAULT_SAVE);
-    }
+    } catch { return structuredClone(DEFAULT_SAVE); }
   },
   save(state) {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
