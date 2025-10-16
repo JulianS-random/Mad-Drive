@@ -1,75 +1,60 @@
 // car.js
-// Handles the vehicle creation and input control
+// Blocky two-wheel car with springy suspension and simple input
 
-import { Engine, Bodies, Constraint, Composite, Body, world } from "./physics.js";
+import { Bodies, Constraint, Composite, Body, world } from "./physics.js";
 
 export class Car {
   constructor(x, y) {
-    this.speed = 0.04;
-    this.torque = 0.002;
-    this.isFlipped = false;
     this.width = 120;
     this.height = 30;
 
-    // Body parts
+    // feel tweaks
+    this.torque = 0.002;      // wheel torque
+    this.restitution = 0.2;
+
     this.chassis = Bodies.rectangle(x, y, this.width, this.height, {
-      density: 0.002,
-      friction: 0.8,
-      label: "carChassis",
+      density: 0.002, friction: 0.9, restitution: this.restitution, label: "carChassis"
     });
 
-    const wheelOptions = { friction: 0.9, restitution: 0.3, density: 0.002 };
-    this.wheelFront = Bodies.circle(x + 45, y + 20, 20, wheelOptions);
-    this.wheelBack = Bodies.circle(x - 45, y + 20, 20, wheelOptions);
+    const wheelOpts = { friction: 0.95, restitution: 0.3, density: 0.002 };
+    this.wheelFront = Bodies.circle(x + 45, y + 20, 20, wheelOpts);
+    this.wheelBack  = Bodies.circle(x - 45, y + 20, 20, wheelOpts);
 
-    // Suspension springs
-    const springOptions = { stiffness: 0.4, damping: 0.1, length: 20 };
+    const spring = { stiffness: 0.45, damping: 0.12, length: 25 };
     this.suspensionFront = Constraint.create({
-      bodyA: this.chassis,
-      bodyB: this.wheelFront,
-      pointA: { x: 45, y: 15 },
-      length: 25,
-      ...springOptions,
+      bodyA: this.chassis, bodyB: this.wheelFront, pointA: { x: 45, y: 15 }, ...spring
     });
     this.suspensionBack = Constraint.create({
-      bodyA: this.chassis,
-      bodyB: this.wheelBack,
-      pointA: { x: -45, y: 15 },
-      length: 25,
-      ...springOptions,
+      bodyA: this.chassis, bodyB: this.wheelBack, pointA: { x: -45, y: 15 }, ...spring
     });
 
     Composite.add(world, [
-      this.chassis,
-      this.wheelFront,
-      this.wheelBack,
-      this.suspensionFront,
-      this.suspensionBack,
+      this.chassis, this.wheelFront, this.wheelBack, this.suspensionFront, this.suspensionBack
     ]);
 
-    // Input state
-    this.input = { left: false, right: false };
-    this.setupInput();
+    this.input = { left:false, right:false };
+    this.isFlipped = false;
+    this._bindInput();
   }
 
-  setupInput() {
+  _bindInput() {
     window.addEventListener("keydown", e => {
-      if (e.key === "ArrowLeft" || e.key === "a") this.input.left = true;
-      if (e.key === "ArrowRight" || e.key === "d") this.input.right = true;
+      if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") this.input.left = true;
+      if (e.key === "ArrowRight"|| e.key.toLowerCase() === "d") this.input.right = true;
     });
     window.addEventListener("keyup", e => {
-      if (e.key === "ArrowLeft" || e.key === "a") this.input.left = false;
-      if (e.key === "ArrowRight" || e.key === "d") this.input.right = false;
+      if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") this.input.left = false;
+      if (e.key === "ArrowRight"|| e.key.toLowerCase() === "d") this.input.right = false;
     });
   }
 
   update() {
-    if (this.input.left) Body.applyTorque(this.wheelBack, -this.torque);
-    if (this.input.right) Body.applyTorque(this.wheelBack, this.torque);
+    if (this.input.left)  Body.applyTorque(this.wheelBack, -this.torque);
+    if (this.input.right) Body.applyTorque(this.wheelBack,  this.torque);
 
-    // Detect flip
-    const angle = Math.abs(this.chassis.angle) % (2 * Math.PI);
-    this.isFlipped = angle > Math.PI / 2 && angle < (3 * Math.PI) / 2;
+    // flip posture: chassis rotated beyond 90° (mod 360)
+    const a = Math.abs(this.chassis.angle) % (Math.PI * 2);
+    this.isFlipped = a > Math.PI / 2 && a < 3 * Math.PI / 2;
   }
 
   get position() {
