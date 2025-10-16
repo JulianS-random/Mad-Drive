@@ -33,7 +33,81 @@ export class GameEngine {
 
   render() {
     const ctx = this.ctx;
-    ctx.clearRect(0, 0, this.width, this.height);
+    const { width, height } = this;
+
+    // Follow camera on the car
+    this.cameraX = this.car.position.x - width / 2;
+
+    // Background
+    ctx.clearRect(0, 0, width, height);
+    const grd = ctx.createLinearGradient(0, height, 0, 0);
+    grd.addColorStop(0, "#222");
+    grd.addColorStop(1, "#555");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw every body in the world
+    const bodies = Matter.Composite.allBodies(Matter.Engine.world(this.runner ? this.runner : this.engine) || this.engine.world);
+    // Fallback to engine.world
+    const list = bodies && bodies.length ? bodies : Matter.Composite.allBodies(this.engine.world);
+
+    list.forEach((b) => {
+      ctx.save();
+      ctx.translate(b.position.x - this.cameraX, b.position.y);
+      ctx.rotate(b.angle);
+
+      // Finish sensor = cyan outline
+      if (b.label === "finish") {
+        ctx.strokeStyle = "#0ff";
+        ctx.lineWidth = 3;
+        this._pathBody(ctx, b);
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+
+      // Wheels (circles)
+      if (b.circleRadius) {
+        ctx.fillStyle = "#111";
+        ctx.beginPath();
+        ctx.arc(0, 0, b.circleRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        return;
+      }
+
+      // Chassis
+      if (b.label === "carChassis") {
+        ctx.fillStyle = "#0ff";
+        this._pathBody(ctx, b);
+        ctx.fill();
+        ctx.restore();
+        return;
+      }
+
+      // Level geometry: flats/ramps
+      if (b.isStatic) {
+        ctx.fillStyle = "#444";
+      } else {
+        ctx.fillStyle = "#666";
+      }
+      this._pathBody(ctx, b);
+      ctx.fill();
+
+      ctx.restore();
+    });
+  }
+
+  // helper to draw from vertices
+  _pathBody(ctx, body) {
+    const v = body.vertices;
+    ctx.beginPath();
+    ctx.moveTo(v[0].x - body.position.x, v[0].y - body.position.y);
+    for (let i = 1; i < v.length; i++) {
+      ctx.lineTo(v[i].x - body.position.x, v[i].y - body.position.y);
+    }
+    ctx.closePath();
+  }
 
     // Camera follow
     this.cameraX = this.car.position.x - this.width / 2;
