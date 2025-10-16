@@ -1,13 +1,12 @@
 // ui.js
-// Pause menu, level select, and basic achievements hooks (progress saving)
-
-import { GameEngine } from "./engine.js";
-import { LevelLoader } from "./levelLoader.js";
+// Pause/menu UI, level select grid, achievements rendering; no folders
 
 export class UI {
   constructor(engine, levelLoader) {
     this.engine = engine;
     this.levels = levelLoader;
+
+    // DOM
     this.el = {
       mainMenu: document.getElementById("main-menu"),
       pauseMenu: document.getElementById("pause-menu"),
@@ -28,24 +27,21 @@ export class UI {
     };
 
     this._bindButtons();
-    this._buildLevelGrid();
     this._bindKeys();
+    this._buildLevelGrid();
 
-    // restore progress
-    this.progress = this._loadProgress();
-    this._paintLevelLocks();
-
-    // listen for level completion
-    this.engine.onWin = () => {
-      const next = Math.min(100, this.levels.currentLevel + 1);
-      if (next > this.progress.unlocked) {
-        this.progress.unlocked = next;
-        this._saveProgress();
-        this._paintLevelLocks();
-      }
-      // auto-continue after a small delay
+    // Chain engine.onWin so UI can auto-advance after achievements run
+    const prevOnWin = this.engine.onWin;
+    this.engine.onWin = (details) => {
+      if (typeof prevOnWin === "function") prevOnWin(details);
+      const next = Math.min(100, (this.levels.currentLevel || 1) + 1);
       setTimeout(() => this.levels.load(next), 800);
     };
+  }
+
+  setAchievements(ach) {
+    this.ach = ach;
+    this._paintLevelLocks(); // once we know unlocked
   }
 
   _bindButtons() {
@@ -53,11 +49,12 @@ export class UI {
 
     E.play.addEventListener("click", () => {
       this.hideAllMenus();
-      const startAt = Math.max(1, Math.min(100, this.progress.unlocked || 1));
-      this.levels.load(startAt);
+      const unlocked = this.ach ? this.ach.getUnlocked() : 1;
+      this.levels.load(Math.max(1, Math.min(100, unlocked)));
     });
 
     E.levelSelectBtn.addEventListener("click", () => {
+      this._paintLevelLocks();
       this.show(E.levelSelect);
     });
 
@@ -73,51 +70,17 @@ export class UI {
       this.show(E.mainMenu);
     });
 
-    E.backMain.addEventListener("click", () => {
-      this.show(E.mainMenu);
-    });
-
-    E.backFromAch.addEventListener("click", () => {
-      this.show(E.mainMenu);
-    });
+    E.backMain.addEventListener("click", () => this.show(E.mainMenu));
+    E.backFromAch.addEventListener("click", () => this.show(E.mainMenu));
   }
 
   _bindKeys() {
-    // ESC to toggle pause
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         if (this.isPaused()) this.resume();
         else this.pause();
       }
     });
-  }
-
-  isPaused() {
-    return this.el.pauseMenu && !this.el.pauseMenu.classList.contains("hidden");
-  }
-
-  pause() {
-    this.engine.pauseGame();
-    this.show(this.el.pauseMenu);
-  }
-
-  resume() {
-    this.engine.resumeGame();
-    this.hide(this.el.pauseMenu);
-  }
-
-  show(node) {
-    this.hideAllMenus();
-    node.classList.remove("hidden");
-  }
-
-  hide(node) {
-    node.classList.add("hidden");
-  }
-
-  hideAllMenus() {
-    [this.el.mainMenu, this.el.pauseMenu, this.el.levelSelect, this.el.achievements]
-      .forEach(n => n && n.classList.add("hidden"));
   }
 
   _buildLevelGrid() {
@@ -129,59 +92,55 @@ export class UI {
       b.dataset.level = i;
       b.addEventListener("click", () => {
         const lvl = Number(b.dataset.level);
-        if (lvl <= (this.progress.unlocked || 1)) {
+        const unlocked = this.ach ? this.ach.getUnlocked() : 1;
+        if (lvl <= unlocked) {
           this.hideAllMenus();
           this.levels.load(lvl);
         }
       });
       grid.appendChild(b);
     }
+    this._paintLevelLocks();
   }
 
   _paintLevelLocks() {
-    const unlocked = this.progress.unlocked || 1;
+    if (!this.el.levelGrid) return;
+    const unlocked = this.ach ? this.ach.getUnlocked() : 1;
     this.el.levelGrid.querySelectorAll("button").forEach(btn => {
       const lvl = Number(btn.dataset.level);
-      if (lvl <= unlocked) {
-        btn.disabled = false;
-        btn.style.opacity = "1";
-      } else {
-        btn.disabled = true;
-        btn.style.opacity = "0.4";
-      }
+      const open = lvl <= unlocked;
+      btn.disabled = !open;
+      btn.style.opacity = open ? "1" : "0.4";
     });
   }
 
   _renderAchievements() {
-    // Placeholder list (Wave 5 will add real logic)
     const list = this.el.achList;
     list.innerHTML = "";
-    const items = [
-      { id: "firstWin", name: "First Finish", unlocked: (this.progress.unlocked || 1) > 1 },
-      { id: "tenWins", name: "Level 10", unlocked: (this.progress.unlocked || 1) >= 10 },
-      { id: "fiftyWins", name: "Level 50", unlocked: (this.progress.unlocked || 1) >= 50 },
-      { id: "hundredWins", name: "Level 100", unlocked: (this.progress.unlocked || 1) >= 100 },
-      { id: "noFlip", name: "Graceful Driver (no flip in a level)", unlocked: false }, // to be wired in Wave 5
-    ];
-    items.forEach(it => {
+    if (this.ach) {
+      this.ach.getList().forEach(text => {
+        const li = document.createElement("li");
+        li.textContent = text;
+        list.appendChild(li);
+      });
+    } else {
       const li = document.createElement("li");
-      li.textContent = `${it.unlocked ? "✅" : "⬜️"} ${it.name}`;
+      li.textContent = "Play to unlock achievements!";
       list.appendChild(li);
-    });
-  }
-
-  _loadProgress() {
-    try {
-      const raw = localStorage.getItem("driveRemixProgress");
-      return raw ? JSON.parse(raw) : { unlocked: 1 };
-    } catch {
-      return { unlocked: 1 };
     }
   }
 
-  _saveProgress() {
-    try {
-      localStorage.setItem("driveRemixProgress", JSON.stringify(this.progress));
-    } catch { /* ignore */ }
+  isPaused() {
+    return this.el.pauseMenu && !this.el.pauseMenu.classList.contains("hidden");
+  }
+
+  pause() { this.engine.pauseGame(); this.show(this.el.pauseMenu); }
+  resume() { this.engine.resumeGame(); this.hide(this.el.pauseMenu); }
+
+  show(node) { this.hideAllMenus(); node.classList.remove("hidden"); }
+  hide(node) { node.classList.add("hidden"); }
+  hideAllMenus() {
+    [this.el.mainMenu, this.el.pauseMenu, this.el.levelSelect, this.el.achievements]
+      .forEach(n => n && n.classList.add("hidden"));
   }
 }
