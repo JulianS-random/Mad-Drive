@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drive Remix</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas" width="1280" height="720"></canvas>
+
+    <!-- UI Overlays -->
+    <div id="main-menu" class="menu">
+      <h1>Drive Remix</h1>
+      <button id="play-btn">Play</button>
+      <button id="level-select-btn">Level Select</button>
+      <button id="achievements-btn">Achievements</button>
+    </div>
+
+    <div id="pause-menu" class="menu hidden">
+      <h2>Paused</h2>
+      <button id="resume-btn">Resume</button>
+      <button id="restart-btn">Restart</button>
+      <button id="quit-btn">Quit</button>
+    </div>
+
+    <div id="level-select-menu" class="menu hidden">
+      <h2>Select Level</h2>
+      <div id="level-grid"></div>
+      <button id="back-to-main">Back</button>
+    </div>
+
+    <div id="achievements-menu" class="menu hidden">
+      <h2>Achievements</h2>
+      <ul id="achievements-list"></ul>
+      <button id="back-from-achievements">Back</button>
+    </div>
+
+    <div id="loading-screen">
+      <div class="spinner"></div>
+      <p>Loading...</p>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
