@@ -1,7 +1,7 @@
 // levelLoader.js
-// Loads levels from LEVELS (levels.js), builds geometry, places finish sensor.
+// Builds a level from LEVELS, places finish sensor, handles win
 
-import { engine, world, Bodies, Composite, Body, Events, addBody } from "./physics.js";
+import { engine, world, Bodies, Composite, Body, Events, addBody, removeBody } from "./physics.js";
 import { LEVELS } from "./levels.js";
 
 export class LevelLoader {
@@ -19,7 +19,14 @@ export class LevelLoader {
       if (!this.finishSensor) return;
       for (const p of e.pairs) {
         if (p.bodyA === this.finishSensor || p.bodyB === this.finishSensor) {
-          if (typeof this.engineRef.onWin === "function") this.engineRef.onWin();
+          if (typeof this.engineRef.onWin === "function") {
+            const timeMs = Math.max(0, performance.now() - (this.engineRef.levelStart || performance.now()));
+            this.engineRef.onWin({
+              level: this.currentLevel,
+              timeMs,
+              flips: this.engineRef.flipCount || 0
+            });
+          }
           break;
         }
       }
@@ -29,65 +36,57 @@ export class LevelLoader {
   restartCurrent() { this.load(this.currentLevel); }
 
   load(levelIndex = 1) {
-    // clamp
-    levelIndex = Math.max(1, Math.min(LEVELS.length, levelIndex));
+    const max = LEVELS.length;
+    levelIndex = Math.max(1, Math.min(max, levelIndex));
     this.currentLevel = levelIndex;
 
-    // Remove previous level bodies
+    // Clear existing level bodies
     this._clearLevel();
 
-    // Reset car dynamics and position to level start
+    // Get config
+    const cfg = LEVELS[levelIndex - 1];
+
+    // Position car
     if (this.engineRef.car) {
-      const { startX, startY } = LEVELS[levelIndex - 1];
-      Body.setPosition(this.engineRef.car.chassis, { x: startX, y: startY });
+      const sx = cfg.startX, sy = cfg.startY;
+      Body.setPosition(this.engineRef.car.chassis, { x: sx, y: sy });
       Body.setAngle(this.engineRef.car.chassis, 0);
       Body.setVelocity(this.engineRef.car.chassis, { x: 0, y: 0 });
       Body.setAngularVelocity(this.engineRef.car.chassis, 0);
 
-      Body.setPosition(this.engineRef.car.wheelFront, { x: startX + 45, y: startY + 20 });
-      Body.setPosition(this.engineRef.car.wheelBack,  { x: startX - 45, y: startY + 20 });
+      Body.setPosition(this.engineRef.car.wheelFront, { x: sx + 45, y: sy + 20 });
+      Body.setPosition(this.engineRef.car.wheelBack,  { x: sx - 45, y: sy + 20 });
       Body.setVelocity(this.engineRef.car.wheelFront, { x: 0, y: 0 });
       Body.setVelocity(this.engineRef.car.wheelBack,  { x: 0, y: 0 });
       Body.setAngularVelocity(this.engineRef.car.wheelFront, 0);
       Body.setAngularVelocity(this.engineRef.car.wheelBack,  0);
     }
 
-    // Build geometry for the level
-    const cfg = LEVELS[levelIndex - 1];
-    const bodies = [];
-
-    // Pieces
+    // Build geometry
+    const made = [];
     for (const piece of cfg.pieces) {
       if (piece.kind === "flat") {
-        bodies.push(Bodies.rectangle(piece.x, piece.y, piece.w, piece.h, {
-          isStatic: true, label: "flat"
-        }));
+        made.push(Bodies.rectangle(piece.x, piece.y, piece.w, piece.h, { isStatic: true, label: "flat" }));
       } else if (piece.kind === "ramp") {
-        bodies.push(Bodies.rectangle(piece.x, piece.y, piece.w, piece.h, {
-          isStatic: true, angle: piece.angle, label: "ramp"
-        }));
+        made.push(Bodies.rectangle(piece.x, piece.y, piece.w, piece.h, { isStatic: true, angle: piece.angle, label: "ramp" }));
       }
     }
 
-    // Finish sensor (thin vertical bar)
-    this.finishSensor = Bodies.rectangle(cfg.finishX, 440, 12, 200, {
-      isStatic: true, isSensor: true, label: "finish"
-    });
-    bodies.push(this.finishSensor);
+    // Finish sensor
+    this.finishSensor = Bodies.rectangle(cfg.finishX, 440, 12, 200, { isStatic: true, isSensor: true, label: "finish" });
+    made.push(this.finishSensor);
 
-    bodies.forEach(b => addBody(b));
-    this.levelBodies = bodies;
+    for (const b of made) addBody(b);
+    this.levelBodies = made;
 
-    // Camera snap to player
-    this.engineRef.cameraX = this.engineRef.car.chassis.position.x - this.engineRef.width / 2;
+    // Start run tracking + camera
+    this.engineRef.beginLevel(levelIndex);
     this.engineRef.resumeGame();
+    this.engineRef.cameraX = this.engineRef.car.chassis.position.x - this.engineRef.width / 2;
   }
 
   _clearLevel() {
-    if (!this.levelBodies.length) return;
-    for (const b of this.levelBodies) {
-      try { Composite.remove(world, b, true); } catch {}
-    }
+    for (const b of this.levelBodies) removeBody(b);
     this.levelBodies = [];
     this.finishSensor = null;
   }
