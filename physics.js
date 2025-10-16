@@ -1,21 +1,19 @@
 // physics.js
-// Sets up Matter.js world and exports engine, world, and helper functions
+// Matter.js setup, exports engine/world and helpers
 
-export const { Engine, Render, Runner, Bodies, Composite, Constraint, Body, Events } = Matter;
+export const {
+  Engine, Render, Runner, Bodies, Composite, Constraint, Body, Events
+} = Matter;
 
 export const engine = Engine.create();
 export const world = engine.world;
-world.gravity.y = 1.2; // similar to Drive Mad — floaty but weighted
 
-// World bounds
-const floor = Bodies.rectangle(0, 500, 5000, 40, { isStatic: true, label: "floor" });
-Composite.add(world, floor);
+// Gravity tuned for Drive Mad feel
+world.gravity.y = 1.2;
 
-export function addBody(body) {
-  Composite.add(world, body);
-}
+// A very wide base floor (invisible "safety" floor); visual ground is from level pieces
+const baseFloor = Bodies.rectangle(3000, 740, 10000, 60, { isStatic: true, label: "baseFloor" });
+Composite.add(world, baseFloor);
 
-export function resetWorld() {
-  Composite.clear(world, false);
-  Composite.add(world, floor);
-}
+export function addBody(b) { Composite.add(world, b); }
+export function removeBody(b) { try { Composite.remove(world, b, true); } catch {} }
